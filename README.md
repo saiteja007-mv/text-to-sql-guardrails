@@ -6,6 +6,15 @@
 </p>
 
 <p align="center">
+  <a href="https://saitejamothukuri-text-to-sql-guardrails.hf.space">
+    <img src="https://img.shields.io/badge/Live%20Demo-Open%20App-2563eb?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live Demo">
+  </a>
+  <a href="https://huggingface.co/spaces/SaitejaMothukuri/text-to-sql-guardrails">
+    <img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-FFD21E?style=for-the-badge" alt="Hugging Face Space">
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
   <img src="https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
   <img src="https://img.shields.io/badge/DB-DuckDB-FFF000?logo=duckdb&logoColor=black" alt="DuckDB">
