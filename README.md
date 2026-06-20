@@ -14,10 +14,7 @@
   </a>
 </p>
 
-<p align="center">
-  <video src="https://github.com/saiteja007-mv/text-to-sql-guardrails/raw/master/assets/demo.mp4" controls muted width="820"></video>
-</p>
-<p align="center"><sub>▶️ demo not playing? <a href="https://github.com/saiteja007-mv/text-to-sql-guardrails/raw/master/assets/demo.mp4">open it directly</a></sub></p>
+https://github.com/user-attachments/assets/5a617dbf-b4d1-4ab7-810a-e76cc7a87243
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
