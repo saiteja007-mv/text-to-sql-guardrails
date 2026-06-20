@@ -1,0 +1,13 @@
+.venv/
+.git/
+.github/
+__pycache__/
+*/__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.streamlit/secrets.toml.example
+.env
+tests/
+docs/
+.boot.log
+*.duckdb

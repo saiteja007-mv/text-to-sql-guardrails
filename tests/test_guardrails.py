@@ -61,6 +61,36 @@ def test_file_functions_blocked(sql):
     assert not r.ok and r.rule in ("forbidden_func", "unknown_table")
 
 
+def test_file_function_with_newline_separator_blocked():
+    # read_csv separated from '(' by a newline must NOT slip past the backstop.
+    r = v("SELECT * FROM customers, read_csv\n('/etc/passwd')")
+    assert not r.ok and r.rule in ("forbidden_func", "table_function")
+
+
+def test_file_function_with_block_comment_blocked():
+    r = v("SELECT * FROM customers, read_csv/* x */('/etc/passwd')")
+    assert not r.ok and r.rule in ("forbidden_func", "table_function")
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM other_schema.customers",
+    "SELECT * FROM information_schema.tables",
+    "SELECT * FROM mydb.main.customers",
+])
+def test_schema_qualified_table_blocked(sql):
+    r = v(sql)
+    assert not r.ok and r.rule in ("qualified_table", "unknown_table")
+
+
+def test_main_schema_qualifier_allowed():
+    assert v("SELECT name FROM main.customers").ok
+
+
+def test_case_insensitive_table_allowed():
+    # DuckDB resolves unquoted identifiers case-insensitively; guardrail must too.
+    assert v("SELECT * FROM Customers").ok
+
+
 def test_empty_blocked():
     r = v("   ")
     assert not r.ok and r.rule == "empty"

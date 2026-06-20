@@ -39,8 +39,10 @@ question ─▶ LLM writes SQL ─▶ guardrails (sqlglot)
 |---|---|---|
 | `single_statement` | `SELECT 1; DROP TABLE t` | `sqlglot.parse` returns >1 statement |
 | `not_readonly` | INSERT / UPDATE / DELETE / DROP / ALTER / CREATE … | root node not a query + write-node scan |
-| `unknown_table` | `SELECT * FROM secrets` | table not in the schema allowlist (CTE names excluded) |
-| `forbidden_func` | `read_csv` / `read_parquet` / `glob` / `install` … | AST scan + string backstop |
+| `qualified_table` | `other_schema.customers`, `information_schema.*`, attached catalogs | reject schema/catalog qualifiers outside `main` |
+| `table_function` | `SELECT * FROM read_csv(...)`, `range(...)` | block table-valued functions (empty-name tables) |
+| `forbidden_func` | `read_csv` / `read_parquet` / `glob` / `install` … | AST scan + comment/whitespace-robust string backstop |
+| `unknown_table` | `SELECT * FROM secrets` | case-insensitive allowlist (CTE names excluded) |
 | `empty` / `parse` | blank or unparseable input | — |
 
 Validation is **parse-based, not regex** — so it isn't fooled by comments, casing,
@@ -51,7 +53,8 @@ a block the pipeline feeds the reason back to the model for **one self-correctio
 
 - **Schema-aware NL→SQL** over a real (DuckDB) database, fully offline-seeded.
 - **Read-only by construction** — write/DDL can never reach the DB.
-- **Row/cost cap** at fetch time; **self-correction retry** on block or exec error.
+- **Cost cap** — wall-clock statement timeout (`con.interrupt()`) + DuckDB memory/thread limits + row cap.
+- **Self-correction retry** on a guardrail block or execution error.
 - **Execution-accuracy eval** — gold NL/SQL pairs scored by result-set match (order-insensitive), not string similarity.
 - **Guardrail playground** in the UI: paste raw SQL, see exactly why it's allowed or blocked.
 - Cloud LLM via free OpenRouter; no GPU, no local model weights.
@@ -111,8 +114,10 @@ A small, deterministic **shop** schema seeded from `data/`:
 - The eval is a compact gold set (8 questions) to demonstrate **execution-accuracy
   discipline**, not a Spider/BIRD leaderboard run — that's the natural next step.
 - In-memory DuckDB seeded at startup; swap `data/*.sql` for your own schema.
-- Guardrails are deliberately conservative (deny-by-default tables + functions).
-  A statement-level timeout is a sensible next hardening step.
+- Guardrails are deliberately conservative (deny-by-default tables + functions,
+  schema-qualifier and table-function rejection, statement timeout + memory caps).
+- Remaining hardening: fully scope-aware CTE resolution (current check excludes CTE
+  names globally) before pointing this at a multi-schema / multi-tenant database.
 
 ## 📄 License
 

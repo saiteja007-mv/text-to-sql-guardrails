@@ -21,3 +21,9 @@ def test_execute_not_truncated_when_under_cap():
     r = execute(con, "SELECT * FROM customers", max_rows=100)
     assert len(r.rows) == 8
     assert r.truncated is False
+
+
+def test_execute_accepts_timeout_for_fast_query():
+    con = build_connection()
+    r = execute(con, "SELECT count(*) FROM customers", timeout_s=5.0)
+    assert r.rows[0][0] == 8

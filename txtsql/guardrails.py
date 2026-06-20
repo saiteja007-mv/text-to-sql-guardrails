@@ -6,6 +6,7 @@ blocked. Parsing (not regex) is what makes this robust against obfuscation.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -69,16 +70,39 @@ def validate(sql: str, allowed_tables: set[str], max_rows: int = 200) -> Guardra
     for fn in stmt.find_all(exp.Anonymous):
         if (fn.name or "").lower() in FORBIDDEN_FUNCS:
             return _blocked(f"Function '{fn.name}' is not allowed.", "forbidden_func")
-    compact = cleaned.lower().replace(" ", "")
+    # Backstop: strip comments + ALL whitespace so 'read_csv\n(' or 'read_csv/**/('
+    # cannot slip past the AST scan (sqlglot may render such a call as an empty-name table).
+    no_comments = re.sub(r"--[^\n]*", " ", cleaned)
+    no_comments = re.sub(r"/\*.*?\*/", " ", no_comments, flags=re.S)
+    compact = re.sub(r"\s+", "", no_comments).lower()
     for fn in FORBIDDEN_FUNCS:
         if f"{fn}(" in compact:
             return _blocked(f"Function '{fn}' is not allowed.", "forbidden_func")
 
-    # Table allowlist — every referenced table must be a known schema table.
+    # Reject schema/catalog-qualified tables. The allowlist is bare names in the
+    # 'main' schema, so a qualifier (other_schema.customers, information_schema.*,
+    # an attached catalog) could reach objects outside the intended database.
+    for t in stmt.find_all(exp.Table):
+        catalog = (t.text("catalog") or "").lower()
+        schema_q = (t.text("db") or "").lower()
+        if catalog or (schema_q and schema_q != "main"):
+            return _blocked(
+                f"Schema/catalog-qualified tables are not allowed: {t.sql(dialect='duckdb')}.",
+                "qualified_table",
+            )
+
+    # A table-valued function (e.g. read_csv(...)) parses as a Table with an empty
+    # name — block it explicitly so it can't ride along with an allowlisted table.
+    real_tables = list(stmt.find_all(exp.Table))
+    if any(not (t.name or "").strip() for t in real_tables):
+        return _blocked("Table-valued functions are not allowed.", "table_function")
+
+    # Table allowlist — case-insensitive, like DuckDB unquoted identifiers.
     # CTE names (defined in a WITH clause) are local aliases, not real tables.
-    cte_names = {c.alias_or_name for c in stmt.find_all(exp.CTE)}
-    used = {t.name for t in stmt.find_all(exp.Table) if t.name}
-    unknown = sorted(t for t in used if t not in allowed_tables and t not in cte_names)
+    allowed_lc = {a.lower() for a in allowed_tables}
+    cte_names = {(c.alias_or_name or "").lower() for c in stmt.find_all(exp.CTE)}
+    used = {t.name.lower() for t in real_tables if t.name}
+    unknown = sorted(t for t in used if t not in allowed_lc and t not in cte_names)
     if unknown:
         return _blocked(f"Unknown table(s): {', '.join(unknown)}.", "unknown_table")
     if not used:
