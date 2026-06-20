@@ -5,11 +5,23 @@ from .guardrails import GuardrailResult, validate
 from .nl2sql import extract_sql, generate_sql
 from .pipeline import AnswerResult, answer
 from .schema import allowed_tables, get_schema, schema_prompt
+from .sources import (
+    build_from_connection_string,
+    build_from_csvs,
+    build_from_duckdb_file,
+    build_from_sqlite_file,
+    detect_db_type,
+)
 
 __all__ = [
     "build_connection",
     "execute",
     "QueryResult",
+    "build_from_csvs",
+    "build_from_sqlite_file",
+    "build_from_duckdb_file",
+    "build_from_connection_string",
+    "detect_db_type",
     "validate",
     "GuardrailResult",
     "generate_sql",

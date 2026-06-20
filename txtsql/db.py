@@ -26,8 +26,8 @@ def _statements(script: str):
             yield s
 
 
-def build_connection(schema_path=None, seed_path=None) -> "duckdb.DuckDBPyConnection":
-    """Build an in-memory DuckDB seeded from the bundled schema + seed SQL files."""
+def new_connection() -> "duckdb.DuckDBPyConnection":
+    """A fresh in-memory DuckDB with bounded resources (memory + threads)."""
     con = duckdb.connect(":memory:")
     # Bound resource use so an accepted-but-pathological query can't exhaust the host.
     for pragma in ("SET memory_limit='512MB'", "SET threads TO 2"):
@@ -35,6 +35,12 @@ def build_connection(schema_path=None, seed_path=None) -> "duckdb.DuckDBPyConnec
             con.execute(pragma)
         except Exception:  # noqa: BLE001 - config name varies across DuckDB versions
             pass
+    return con
+
+
+def build_connection(schema_path=None, seed_path=None) -> "duckdb.DuckDBPyConnection":
+    """Build an in-memory DuckDB seeded from the bundled schema + seed SQL files."""
+    con = new_connection()
     schema_sql = Path(schema_path or DATA_DIR / "schema.sql").read_text(encoding="utf-8")
     seed_sql = Path(seed_path or DATA_DIR / "seed.sql").read_text(encoding="utf-8")
     for stmt in _statements(schema_sql):

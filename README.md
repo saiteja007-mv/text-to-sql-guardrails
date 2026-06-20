@@ -51,6 +51,7 @@ a block the pipeline feeds the reason back to the model for **one self-correctio
 
 ## ✨ Features
 
+- **Bring your own database** — query the demo DB, upload CSV(s) / a SQLite or DuckDB file, or attach a remote **Postgres/MySQL** (read-only). Everything loads into a session-scoped DuckDB.
 - **Schema-aware NL→SQL** over a real (DuckDB) database, fully offline-seeded.
 - **Read-only by construction** — write/DDL can never reach the DB.
 - **Cost cap** — wall-clock statement timeout (`con.interrupt()`) + DuckDB memory/thread limits + row cap.
@@ -96,7 +97,8 @@ Streamlit on port 7860.
 
 | Stage | File | What it does |
 |---|---|---|
-| DB | `txtsql/db.py` | Build in-memory DuckDB from `data/*.sql`; row-capped execute |
+| DB | `txtsql/db.py` | In-memory DuckDB factory (resource limits); row + timeout capped execute |
+| Sources | `txtsql/sources.py` | Load CSV / SQLite / DuckDB / remote Postgres·MySQL into `main` (SSRF guard) |
 | Schema | `txtsql/schema.py` | Introspect tables/columns → prompt text + allowlist |
 | Generate | `txtsql/nl2sql.py` | Schema-aware OpenRouter prompt + SQL extraction |
 | **Guardrails** | `txtsql/guardrails.py` | `sqlglot` validation (the core IP) |
@@ -108,6 +110,25 @@ Streamlit on port 7860.
 
 A small, deterministic **shop** schema seeded from `data/`:
 `customers`, `products`, `orders`, `order_items` — enough for joins and aggregations.
+
+## 🔌 Connect your own database
+
+Pick a source in the sidebar; all of them are copied into a fresh, **session-scoped**
+in-memory DuckDB `main` schema, so guardrails and the prompt stay simple (unqualified
+tables, one dialect) and no live remote handle is held while answering:
+
+| Source | How |
+|---|---|
+| **Demo shop DB** | bundled, default |
+| **CSV(s)** | each file → a table (`read_csv_auto`) |
+| **SQLite / DuckDB file** | attached read-only, tables copied in |
+| **Remote Postgres / MySQL** | `ATTACH ... (READ_ONLY)` via DuckDB scanners, tables imported (row-capped) |
+
+**Security model (this is a public app):** sources are isolated per browser session;
+remote imports are capped at 100k rows/table; **private / loopback / link-local hosts
+are refused** (SSRF guard); credentials are entered as a password field and never
+logged. Still — **use a read-only / test database, never production credentials**, on
+a shared public deployment. For sensitive databases, run it locally instead.
 
 ## ⚖️ Honest notes / scale path
 
