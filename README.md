@@ -14,7 +14,10 @@
   </a>
 </p>
 
-<p align="center"><b>🎥 <a href="assets/demo.mp4">Watch the demo</a></b></p>
+<p align="center">
+  <video src="https://github.com/saiteja007-mv/text-to-sql-guardrails/raw/master/assets/demo.mp4" controls muted width="820"></video>
+</p>
+<p align="center"><sub>▶️ demo not playing? <a href="https://github.com/saiteja007-mv/text-to-sql-guardrails/raw/master/assets/demo.mp4">open it directly</a></sub></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
