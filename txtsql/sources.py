@@ -14,11 +14,15 @@ from __future__ import annotations
 import ipaddress
 import re
 import socket
-from urllib.parse import urlparse
+import threading
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from .db import new_connection
 
 REMOTE_ROW_CAP = 100_000
+REMOTE_TIMEOUT_S = 20.0
+# Catalogs/metadata exposed by attached databases — never import these as user tables.
+SYSTEM_SCHEMAS = ("information_schema", "pg_catalog", "pg_toast", "sys", "mysql", "performance_schema")
 
 
 def _esc(value: str) -> str:
@@ -31,11 +35,50 @@ def _safe_ident(name: str) -> str:
 
 
 def _attached_tables(con, alias: str):
-    """[(schema_name, table_name)] for an attached database ``alias``."""
+    """[(schema_name, table_name)] for the *user* tables of attached DB ``alias``
+    (system catalogs like information_schema / pg_catalog are excluded)."""
+    placeholders = ", ".join("?" for _ in SYSTEM_SCHEMAS)
     return con.execute(
-        "SELECT schema_name, table_name FROM duckdb_tables() WHERE database_name = ?",
-        [alias],
+        f"SELECT schema_name, table_name FROM duckdb_tables() "
+        f"WHERE database_name = ? AND lower(schema_name) NOT IN ({placeholders})",
+        [alias, *SYSTEM_SCHEMAS],
     ).fetchall()
+
+
+def _with_timeout(fn, timeout_s: float):
+    """Run ``fn`` in a thread; raise TimeoutError if it doesn't finish in time.
+
+    Bounds an unreachable-host hang (e.g. a public deployment that cannot route to
+    a Tailscale/LAN-only database) so the UI shows an error instead of spinning.
+    """
+    box: dict = {}
+
+    def run():
+        try:
+            box["value"] = fn()
+        except Exception as e:  # noqa: BLE001
+            box["error"] = e
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    th.join(timeout_s)
+    if th.is_alive():
+        raise TimeoutError(
+            f"Connection/import timed out after {timeout_s:.0f}s — is the host reachable "
+            "from this server? A public deployment cannot reach a Tailscale/LAN-only address; "
+            "run the app locally for those."
+        )
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
+def _with_pg_connect_timeout(conn_str: str, seconds: int = 8) -> str:
+    """Add libpq ``connect_timeout`` so an unreachable Postgres fails fast."""
+    u = urlparse(conn_str)
+    q = dict(parse_qsl(u.query))
+    q.setdefault("connect_timeout", str(seconds))
+    return urlunparse(u._replace(query=urlencode(q)))
 
 
 def _copy_attached(con, alias: str, row_cap: int | None = None) -> int:
@@ -124,18 +167,27 @@ def _reject_internal_host(conn_str: str) -> None:
         raise ValueError(f"Refusing to connect to a private/internal host: {host}")
 
 
-def build_from_connection_string(conn_str: str, row_cap: int = REMOTE_ROW_CAP):
+def build_from_connection_string(
+    conn_str: str,
+    row_cap: int = REMOTE_ROW_CAP,
+    timeout_s: float = REMOTE_TIMEOUT_S,
+):
     db_type = detect_db_type(conn_str)
     _reject_internal_host(conn_str)
-    con = new_connection()
-    con.execute(f"INSTALL {db_type}")
-    con.execute(f"LOAD {db_type}")
-    con.execute(f"ATTACH '{_esc(conn_str)}' AS src (TYPE {db_type}, READ_ONLY)")
-    try:
-        _copy_attached(con, "src", row_cap=row_cap)
-    finally:
+    dsn = _with_pg_connect_timeout(conn_str) if db_type == "postgres" else conn_str
+
+    def _do():
+        con = new_connection()
+        con.execute(f"INSTALL {db_type}")
+        con.execute(f"LOAD {db_type}")
+        con.execute(f"ATTACH '{_esc(dsn)}' AS src (TYPE {db_type}, READ_ONLY)")
         try:
-            con.execute("DETACH src")
-        except Exception:  # noqa: BLE001
-            pass
-    return con
+            _copy_attached(con, "src", row_cap=row_cap)
+        finally:
+            try:
+                con.execute("DETACH src")
+            except Exception:  # noqa: BLE001
+                pass
+        return con
+
+    return _with_timeout(_do, timeout_s)

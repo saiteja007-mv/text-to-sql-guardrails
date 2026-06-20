@@ -74,3 +74,30 @@ def test_detect_db_type():
     assert detect_db_type("mysql://x/y") == "mysql"
     with pytest.raises(ValueError):
         detect_db_type("sqlite:///x.db")
+
+
+def test_pg_connect_timeout_added():
+    from txtsql.sources import _with_pg_connect_timeout
+
+    out = _with_pg_connect_timeout("postgresql://u:p@host:5432/db", 8)
+    assert "connect_timeout=8" in out
+
+
+def test_with_timeout_raises_on_slow_and_returns_on_fast():
+    import time
+
+    from txtsql.sources import _with_timeout
+
+    assert _with_timeout(lambda: 42, 2.0) == 42
+    with pytest.raises(TimeoutError):
+        _with_timeout(lambda: time.sleep(2.0), 0.3)
+
+
+def test_with_timeout_propagates_error():
+    from txtsql.sources import _with_timeout
+
+    def boom():
+        raise ValueError("nope")
+
+    with pytest.raises(ValueError):
+        _with_timeout(boom, 2.0)
