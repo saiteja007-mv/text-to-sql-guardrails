@@ -1,0 +1,7 @@
+# Text-to-SQL with Guardrails — cloud LLM (OpenRouter), local DuckDB, no torch.
+streamlit>=1.33
+openai>=1.30
+duckdb>=1.0
+sqlglot>=25.0
+python-dotenv>=1.0
+pytest>=8.0

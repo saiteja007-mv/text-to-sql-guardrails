@@ -1,0 +1,40 @@
+"""Shared OpenRouter access: key resolution + a configured OpenAI client."""
+from __future__ import annotations
+
+import os
+
+try:
+    # Load a local .env (if present) so OPENROUTER_API_KEY from the README's
+    # `.env` option is picked up. Does not override variables already in the env.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:  # python-dotenv is optional at runtime
+    pass
+
+BASE_URL = "https://openrouter.ai/api/v1"
+_HEADERS = {
+    "HTTP-Referer": "https://github.com/saiteja007-mv/text-to-sql-guardrails",
+    "X-Title": "Text-to-SQL with Guardrails",
+}
+
+
+def get_api_key() -> str | None:
+    """Resolve the OpenRouter key from env, then Streamlit secrets if available."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        return key.strip()
+    try:
+        import streamlit as st
+
+        if "OPENROUTER_API_KEY" in st.secrets:
+            return str(st.secrets["OPENROUTER_API_KEY"]).strip()
+    except Exception:  # noqa: BLE001 - streamlit absent / no secrets file
+        pass
+    return None
+
+
+def make_client(api_key: str):
+    from openai import OpenAI
+
+    return OpenAI(base_url=BASE_URL, api_key=api_key, default_headers=_HEADERS)
